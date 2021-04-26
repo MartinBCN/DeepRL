@@ -11,7 +11,7 @@ AGENTS = {'basic': BasicAgent, 'fixed_target': FixedQTargetAgent, 'double_q': Do
           'dueling_basic': DuelingBasicAgent, 'fixed_target_dueling': FixedTargetDuelingAgent}
 
 
-def dqn(agent_type: str, n_episodes: int = 2000, max_t: int = 1000, eps_start: float = 1.0,
+def dqn(agent_type: str, name: str = None, n_episodes: int = 2000, max_t: int = 1000, eps_start: float = 1.0,
         eps_end: float = 0.01, eps_decay: float = 0.995, buffer_size: int = int(1e5), batch_size: int = 64,
         gamma: float = 0.99, tau: float = 1e-3, lr: float = 5e-4, update_every: int = 4) -> None:
     """
@@ -21,6 +21,8 @@ def dqn(agent_type: str, n_episodes: int = 2000, max_t: int = 1000, eps_start: f
     ----------
     agent_type: str
         Define the type of agent being used
+     name: str, default = None
+        Name for storing
     n_episodes: int, default = 2000
         maximum number of training episodes
     max_t: int, default = 1000
@@ -54,7 +56,10 @@ def dqn(agent_type: str, n_episodes: int = 2000, max_t: int = 1000, eps_start: f
     # and Tensorboard. Resolving this may be complicated -> drop Tensorboard for the time being
     # writer = SummaryWriter(f'runs/{agent_type}')
 
-    log_file = Path(os.environ.get('LOG_DIR', 'runs')) / f'{agent_type}.json'
+    if name is None:
+        name = agent_type
+
+    log_file = Path(os.environ.get('LOG_DIR', 'runs')) / f'{name}.json'
 
     trainer = Trainer(env,
                       brain=0,
@@ -69,7 +74,7 @@ def dqn(agent_type: str, n_episodes: int = 2000, max_t: int = 1000, eps_start: f
     agent = AGENTS[agent_type]
     agent = agent(state_size=state_size,
                   action_size=action_size,
-                  buffer_type=PrioritizedReplayBuffer,
+                  buffer_type=ReplayBuffer,
                   buffer_size=buffer_size,
                   batch_size=batch_size,
                   eps_start=eps_start,
@@ -82,15 +87,14 @@ def dqn(agent_type: str, n_episodes: int = 2000, max_t: int = 1000, eps_start: f
     )
 
     trainer.train(agent, n_episodes=n_episodes)
-    fn = Path(os.environ.get('FIG_DIR', '_includes')) / f'{agent_type}.png'
+    fn = Path(os.environ.get('FIG_DIR', '_includes')) / f'{name}.png'
     trainer.plot(fn)
 
-    fn = Path(os.environ.get('LOG_DIR', 'runs')) / f'{agent_type}.json'
     trainer.save_logs()
 
     if trainer.solved:
         model_dir = os.environ.get('MODEL_DIR', 'models')
-        fn = Path(model_dir) / f'{agent_type}.pt'
+        fn = Path(model_dir) / f'{name}.pt'
         agent.save(fn)
 
 

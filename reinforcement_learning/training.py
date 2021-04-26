@@ -157,7 +157,7 @@ class Trainer:
         fig, axes = plt.subplots(2, 1, figsize=(12, 8))
 
         # --- Scores ---
-        scores = self.logger['score']
+        scores = self.logger['epoch']['score']
         x = np.arange(len(scores))
         axes[0].plot(x, scores)
         y = np.convolve(scores, np.ones(100) / 100, mode='same')
@@ -167,7 +167,7 @@ class Trainer:
         axes[0].set_xlabel('Episode #')
 
         # --- Losses ---
-        losses = self.logger['loss']
+        losses = self.logger['epoch']['loss']
         x = np.arange(len(losses))
         axes[1].plot(x, losses)
         y = np.convolve(losses, np.ones(100) / 100, mode='same')
