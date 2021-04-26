@@ -92,12 +92,8 @@ class PrioritizedReplayBuffer(ReplayBuffer):
         experiences = []
         for _ in range(self.batch_size):
             s = random.random() * self.memory.total()
-            print(s)
-            print(self.memory.total())
-            print(self.memory.n_entries)
             experience = self.memory.get(sampled_value=s)
             experiences.append(experience)
-            exit()
 
         states = torch.from_numpy(np.vstack([e.state for e in experiences if e is not None])).float().to(device)
         actions = torch.from_numpy(np.vstack([e.action for e in experiences if e is not None])).long().to(device)
@@ -126,4 +122,4 @@ class PrioritizedReplayBuffer(ReplayBuffer):
         None
         """
         e = self.experience(state, action, reward, next_state, done)
-        self.memory.add(priority=reward, data=e)
+        self.memory.add(priority=reward + 1e-1, data=e)

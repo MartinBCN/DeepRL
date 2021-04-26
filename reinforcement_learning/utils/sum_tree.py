@@ -113,7 +113,6 @@ class SumTree:
         -------
         None
         """
-        print('added item with priority', priority)
         idx = self.write + self.capacity - 1
 
         self.data[self.write] = data
