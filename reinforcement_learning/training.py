@@ -101,7 +101,7 @@ class Trainer:
             state = env_info.vector_observations[0]  # get the current state
 
             score = 0
-            episode_loss = 0
+            episode_loss = {}
 
             for t in range(self.max_t):
                 action = agent.act(state)
@@ -111,8 +111,12 @@ class Trainer:
                 done = env_info.local_done[0]  # see if episode has finished
                 loss = agent.step(state, action, reward, next_state, done)
                 if loss is not None:
-                    self.log_batch('loss', loss)
-                    episode_loss += loss
+                    for k, v in loss.items():
+                        self.log_batch(k, v)
+                        if k in episode_loss.keys():
+                            episode_loss[k] += v
+                        else:
+                            episode_loss[k] = v
                 state = next_state
                 score += reward
                 if done:
@@ -124,7 +128,8 @@ class Trainer:
             # Book-keeping
             self.log_epoch('score', score)
             self.log_epoch('score_window', score)
-            self.log_epoch('loss', episode_loss)
+            for k, v in episode_loss.items():
+                self.log_epoch(k, v)
 
             mean_score = np.mean(self.logger['epoch']['score_window'])
             log_str = f'\rEpisode {i_episode}\tAverage Score: {mean_score:.2f}'

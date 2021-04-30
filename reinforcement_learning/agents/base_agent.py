@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import Tuple, Union
+from typing import Tuple, Union, Dict
 
 import numpy as np
 import random
@@ -88,7 +88,7 @@ class BaseAgent(ABC):
         else:
             return 0.
 
-    def step(self, state: np.array, action: int, reward: float, next_state: np.array, done: bool) -> None:
+    def step(self, state: np.array, action: int, reward: float, next_state: np.array, done: bool) -> Dict[str, float]:
         """
         Add a new tuple to the memory and execute the training step after the defined number of time steps
 
@@ -102,8 +102,8 @@ class BaseAgent(ABC):
 
         Returns
         -------
-        loss: float
-            Loss is returned for book-keeping
+        Dict[str, float]
+            Loss is returned for book-keeping. To allow for more than one we return a dictionary
         """
         loss = None
         # Save experience in replay memory
@@ -116,6 +116,7 @@ class BaseAgent(ABC):
             if len(self.memory) > self.batch_size:
                 experiences = self.memory.sample()
                 loss = self.learn(experiences)
+                loss = {'Loss': loss}
         return loss
 
     @abstractmethod
@@ -168,20 +169,6 @@ class BaseAgent(ABC):
         """
         for target_param, local_param in zip(target_model.parameters(), local_model.parameters()):
             target_param.data.copy_(tau * local_param.data + (1.0 - tau) * target_param.data)
-
-    # @abstractmethod
-    # def state_to_action(self, state: Tensor) -> Tensor:
-    #     """
-    #     State-to-action step
-    #
-    #     Parameters
-    #     ----------
-    #     state: Tensor
-    #
-    #     Returns
-    #     -------
-    #     action: Tensor
-    #     """
 
     @abstractmethod
     def save(self, path_name: Union[str, Path]) -> None:

@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Tuple, Union
+from typing import Tuple, Union, Dict
 
 import numpy as np
 import random
@@ -7,7 +7,8 @@ import random
 from torch import Tensor
 from torch.optim import Adam
 
-from model import Actor, Critic
+from reinforcement_learning.agents.base_agent import BaseContinuous
+from reinforcement_learning.model.models import Actor, Critic
 from reinforcement_learning.utils.buffer import ReplayBuffer
 import torch
 import torch.nn.functional as F
@@ -19,7 +20,7 @@ random.seed(42)
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 
-class Agent:
+class DDPG(BaseContinuous):
     """
     Interacts with and learns from the environment.
 
@@ -45,10 +46,13 @@ class Agent:
         how often to update the network
     """
 
-    def __init__(self, state_size: int, action_size: int, buffer_size: int = int(1e5), batch_size: int = 64,
+    def __init__(self, state_size: int, action_size: int,
+                 buffer_type: type, buffer_size: int = int(1e5), batch_size: int = 64,
                  gamma: float = 0.99, tau: float = 1e-3, update_every: int = 4,
                  lr_actor: float = 5e-4, lr_critic: float = 1e-4,
                  eps_start: float = 1.0, eps_end: float = 0.01, eps_decay: float = 0.995) -> None:
+        super(DDPG, self).__init__(state_size, action_size, buffer_type, buffer_size, batch_size,
+                                   gamma, tau, update_every, eps_start, eps_end, eps_decay)
         self.state_size = state_size
         self.action_size = action_size
 
@@ -105,7 +109,7 @@ class Agent:
             return 0.
 
     def step(self, state: np.array, action: int, reward: float, next_state: np.array, done: bool)\
-            -> Tuple[float, float]:
+            -> Dict[str, float]:
         """
         Add a new tuple to the memory and execute the training step after the defined number of time steps
 
@@ -119,9 +123,10 @@ class Agent:
 
         Returns
         -------
-        loss: float
-            Loss is returned for book-keeping
+        Dict[str, float]
+            Loss is returned for book-keeping. To allow for more than one we return a dictionary
         """
+        loss = {}
         actor_loss, critic_loss = None, None
         # Save experience in replay memory
         self.memory.add(state, action, reward, next_state, done)
@@ -133,7 +138,8 @@ class Agent:
             if len(self.memory) > self.batch_size:
                 experiences = self.memory.sample()
                 actor_loss, critic_loss = self.learn(experiences)
-        return actor_loss, critic_loss
+                loss = {'ActorLoss': actor_loss, 'CriticLoss': critic_loss}
+        return loss
 
     def act(self, state: np.array, use_noise: bool = True) -> np.array:
         """
