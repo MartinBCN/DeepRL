@@ -11,9 +11,9 @@ AGENTS = {'basic': BasicAgent, 'fixed_target': FixedQTargetAgent, 'double_q': Do
           'dueling_basic': DuelingBasicAgent, 'fixed_target_dueling': FixedTargetDuelingAgent}
 
 
-def dqn(agent_type: str, name: str = None, n_episodes: int = 2000, max_t: int = 1000, eps_start: float = 1.0,
-        eps_end: float = 0.01, eps_decay: float = 0.995, buffer_size: int = int(1e5), batch_size: int = 64,
-        gamma: float = 0.99, tau: float = 1e-3, lr: float = 5e-4, update_every: int = 4) -> None:
+def banana(agent_type: str, name: str = None, n_episodes: int = 2000, max_t: int = 1000, eps_start: float = 1.0,
+           eps_end: float = 0.01, eps_decay: float = 0.995, buffer_size: int = int(1e5), batch_size: int = 64,
+           gamma: float = 0.99, tau: float = 1e-3, lr: float = 5e-4, update_every: int = 4) -> None:
     """
     Training of DQN
 
@@ -64,7 +64,7 @@ def dqn(agent_type: str, name: str = None, n_episodes: int = 2000, max_t: int = 
     trainer = Trainer(env,
                       brain=0,
                       max_t=max_t,
-                      score_solved=30,
+                      score_solved=13,
                       n_episode_solved=100,
                       log_file=log_file)
 
@@ -87,9 +87,6 @@ def dqn(agent_type: str, name: str = None, n_episodes: int = 2000, max_t: int = 
     )
 
     trainer.train(agent, n_episodes=n_episodes)
-    fn = Path(os.environ.get('FIG_DIR', '_includes')) / f'{name}.png'
-    trainer.plot(fn)
-
     trainer.save_logs()
 
     if trainer.solved:
@@ -102,4 +99,4 @@ if __name__ == '__main__':
     # for agent in AGENTS.keys():
     #     dqn(agent_type=agent, n_episodes=2500)
 
-    dqn(agent_type='fixed_target_dueling', n_episodes=2000)
+    banana(agent_type='fixed_target_dueling', n_episodes=2000)

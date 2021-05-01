@@ -7,17 +7,16 @@ import random
 
 from torch import Tensor
 from torch.optim import Adam
-
 import torch
-import torch.nn.functional as F
 import torch.nn as nn
 
 from reinforcement_learning.model.models import DQN, Actor
-from reinforcement_learning.utils.buffer import ReplayBuffer
+from reinforcement_learning.utils.buffer import ReplayBuffer, PrioritizedReplayBuffer
 from reinforcement_learning.utils.noise import OUNoise
 
 random.seed(42)
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+BUFFER = {'RB': ReplayBuffer, "PRB": PrioritizedReplayBuffer}
 
 
 class BaseAgent(ABC):
@@ -30,39 +29,30 @@ class BaseAgent(ABC):
         dimension of each state
     action_size: int
         dimension of each action
-    buffer_size: int = int(1e5)
-        replay buffer size
-    batch_size: int = 64
-        mini-batch size
-    gamma: float = 0.99
-        discount factor
-    tau: float = 1e-3
-        for soft update of target parameters
-    update_every: int = 4
-        how often to update the network
     """
 
-    def __init__(self, state_size: int, action_size: int,
-                 buffer_type: type,  buffer_size: int = int(1e5), batch_size: int = 64,
-                 gamma: float = 0.99, tau: float = 1e-3, update_every: int = 4,
-                 eps_start: float = 1.0, eps_end: float = 0.01, eps_decay: float = 0.995) -> None:
+    def __init__(self, state_size: int, action_size: int, agent_config: dict) -> None:
         self.state_size = state_size
         self.action_size = action_size
 
-        # Epsilon
-        self.eps = eps_start
-        self.eps_end = eps_end
-        self.eps_decay = eps_decay
+        self.config = agent_config
 
-        self.gamma = gamma
-        self.tau = tau
+        # Epsilon
+        self.eps = agent_config['epsilon']['eps_start']
+        self.eps_end = agent_config['epsilon']['eps_end']
+        self.eps_decay = agent_config['epsilon']['eps_decay']
+
+        self.gamma = agent_config['gamma']
+        self.tau = agent_config['tau']
 
         # Replay memory
-        self.batch_size = batch_size
-        self.memory = buffer_type(action_size, buffer_size, batch_size)
+        self.batch_size = agent_config['batch_size']
+        buffer_size = agent_config['buffer']['buffer_size']
+        buffer = BUFFER[agent_config['buffer']['type']]
+        self.memory = buffer(action_size, buffer_size, self.batch_size)
         # Initialize time step (for updating every UPDATE_EVERY steps)
         self.t_step = 0
-        self.update_every = update_every
+        self.update_every = agent_config['update_every']
 
         self.training_mode = True
 
@@ -187,31 +177,25 @@ class BaseAgent(ABC):
 
 class BaseContinuous(BaseAgent, ABC):
 
-    def __init__(self, state_size: int, action_size: int,
-                 buffer_type: type,  buffer_size: int = int(1e5), batch_size: int = 64,
-                 gamma: float = 0.99, tau: float = 1e-3, update_every: int = 4,
-                 eps_start: float = 1.0, eps_end: float = 0.01, eps_decay: float = 0.995,
-                 lr_actor: float = 1e-4
-                 ) -> None:
-        super(BaseContinuous, self).__init__(state_size, action_size, buffer_type, buffer_size, batch_size, gamma, tau,
-                                             update_every, eps_start, eps_end, eps_decay)
+    def __init__(self, state_size: int, action_size: int, agent_config: dict) -> None:
+        super(BaseContinuous, self).__init__(state_size, action_size, agent_config)
 
         # Actor
         self.actor_local = Actor(state_size, action_size).to(device)
         self.actor_target = Actor(state_size, action_size).to(device)
-        self.optimizer_actor = Adam(self.actor_local.parameters(), lr=lr_actor)
+        self.optimizer_actor = Adam(self.actor_local.parameters(), lr=agent_config['actor']['lr'])
 
         # Noise process
+        self.use_noise = agent_config.get('use_noise', True)
         self.noise = OUNoise(action_size)
 
-    def act(self, state: np.array, use_noise: bool = True) -> np.array:
+    def act(self, state: np.array) -> np.array:
         """
         Returns actions for given state as per current policy
 
         Parameters
         ----------
         state: np.array
-        use_noise: bool, default = True
 
         Returns
         -------
@@ -222,7 +206,7 @@ class BaseContinuous(BaseAgent, ABC):
         with torch.no_grad():
             action = self.actor_local(state).cpu().data.numpy()
         self.actor_local.train()
-        if use_noise:
+        if self.use_noise:
             action += self.noise.sample()
         return np.clip(action, -1, 1)
 
@@ -248,18 +232,12 @@ class BaseContinuous(BaseAgent, ABC):
 
 class BaseDiscrete(BaseAgent, ABC):
 
-    def __init__(self, state_size: int, action_size: int,
-                 buffer_type: type,  buffer_size: int = int(1e5), batch_size: int = 64,
-                 gamma: float = 0.99, tau: float = 1e-3, update_every: int = 4,
-                 eps_start: float = 1.0, eps_end: float = 0.01, eps_decay: float = 0.995,
-                 lr: float = 5e-4
-                 ) -> None:
-        super(BaseDiscrete, self).__init__(state_size, action_size, buffer_type, buffer_size, batch_size, gamma, tau,
-                                           update_every, eps_start, eps_end, eps_decay)
+    def __init__(self, state_size: int, action_size: int, agent_config: dict) -> None:
+        super(BaseDiscrete, self).__init__(state_size, action_size, agent_config)
 
         # Q-Network
         self.q_network = DQN(state_size, action_size).to(device)
-        self.optimizer = Adam(self.q_network.parameters(), lr=lr)
+        self.optimizer = Adam(self.q_network.parameters(), lr=agent_config['q_network']['lr'])
 
     def act(self, state: np.array) -> np.array:
         """

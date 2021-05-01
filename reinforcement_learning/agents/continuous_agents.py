@@ -30,61 +30,26 @@ class DDPG(BaseContinuous):
         dimension of each state
     action_size: int
         dimension of each action
-    buffer_size: int = int(1e5)
-        replay buffer size
-    batch_size: int = 64
-        mini-batch size
-    gamma: float = 0.99
-        discount factor
-    tau: float = 1e-3
-        for soft update of target parameters
-    lr_actor: float = 5e-4
-        Learning rate actor
-    lr_critic: float = 1e-4
-        Learning rate critic
-    update_every: int = 4
-        how often to update the network
     """
 
-    def __init__(self, state_size: int, action_size: int,
-                 buffer_type: type, buffer_size: int = int(1e5), batch_size: int = 64,
-                 gamma: float = 0.99, tau: float = 1e-3, update_every: int = 4,
-                 lr_actor: float = 5e-4, lr_critic: float = 1e-4,
-                 eps_start: float = 1.0, eps_end: float = 0.01, eps_decay: float = 0.995) -> None:
-        super(DDPG, self).__init__(state_size, action_size, buffer_type, buffer_size, batch_size,
-                                   gamma, tau, update_every, eps_start, eps_end, eps_decay)
+    def __init__(self, state_size: int, action_size: int, agent_config: dict) -> None:
+        super(DDPG, self).__init__(state_size, action_size, agent_config=agent_config)
         self.state_size = state_size
         self.action_size = action_size
 
         # Actor
-        self.actor_local = Actor(state_size, action_size).to(device)
-        self.actor_target = Actor(state_size, action_size).to(device)
+        hl = agent_config['actor']['hidden_layers']
+        self.actor_local = Actor(state_size, action_size, hidden_layers=hl).to(device)
+        self.actor_target = Actor(state_size, action_size, hidden_layers=hl).to(device)
+        lr_actor = agent_config['actor']['lr']
         self.optimizer_actor = Adam(self.actor_local.parameters(), lr=lr_actor)
 
         # Critic
-        self.critic_local = Critic(state_size, action_size).to(device)
-        self.critic_target = Critic(state_size, action_size).to(device)
+        hl = agent_config['critic']['hidden_layers']
+        self.critic_local = Critic(state_size, action_size, hidden_layers=hl).to(device)
+        self.critic_target = Critic(state_size, action_size, hidden_layers=hl).to(device)
+        lr_critic = agent_config['critic']['lr']
         self.optimizer_critic = Adam(self.critic_local.parameters(), lr=lr_critic)
-
-        # Epsilon
-        self.eps = eps_start
-        self.eps_end = eps_end
-        self.eps_decay = eps_decay
-
-        self.gamma = gamma
-        self.tau = tau
-
-        # Noise process
-        self.noise = OUNoise(action_size)
-
-        # Replay memory
-        self.batch_size = batch_size
-        self.memory = ReplayBuffer(action_size, buffer_size, batch_size)
-        # Initialize time step (for updating every UPDATE_EVERY steps)
-        self.t_step = 0
-        self.update_every = update_every
-
-        self.training_mode = True
 
     def step_epsilon(self):
         """
@@ -141,14 +106,13 @@ class DDPG(BaseContinuous):
                 loss = {'ActorLoss': actor_loss, 'CriticLoss': critic_loss}
         return loss
 
-    def act(self, state: np.array, use_noise: bool = True) -> np.array:
+    def act(self, state: np.array) -> np.array:
         """
         Returns actions for given state as per current policy
 
         Parameters
         ----------
         state: np.array
-        use_noise: bool, default = True
 
         Returns
         -------
@@ -159,7 +123,7 @@ class DDPG(BaseContinuous):
         with torch.no_grad():
             action = self.actor_local(state).cpu().data.numpy()
         self.actor_local.train()
-        if use_noise:
+        if self.use_noise:
             action += self.noise.sample()
         return np.clip(action, -1, 1)
 

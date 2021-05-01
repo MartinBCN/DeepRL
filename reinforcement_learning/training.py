@@ -158,28 +158,18 @@ class Trainer:
         -------
         None
         """
+        n = len(self.logger['epoch'])
+        fig, axes = plt.subplots(n, 1, figsize=(12, 8))
 
-        fig, axes = plt.subplots(2, 1, figsize=(12, 8))
+        for i, (name, values) in self.logger['epoch'].items():
+            scores = self.logger['epoch'][name]
+            x = np.arange(len(scores))
+            axes[i].plot(x, scores)
+            y = np.convolve(scores, np.ones(100) / 100, mode='same')
+            axes[i].plot(x, y)
 
-        # --- Scores ---
-        scores = self.logger['epoch']['score']
-        x = np.arange(len(scores))
-        axes[0].plot(x, scores)
-        y = np.convolve(scores, np.ones(100) / 100, mode='same')
-        axes[0].plot(x, y)
-
-        axes[0].set_ylabel('Score')
-        axes[0].set_xlabel('Episode #')
-
-        # --- Losses ---
-        losses = self.logger['epoch']['loss']
-        x = np.arange(len(losses))
-        axes[1].plot(x, losses)
-        y = np.convolve(losses, np.ones(100) / 100, mode='same')
-        axes[1].plot(x, y)
-
-        axes[1].set_ylabel('Loss')
-        axes[1].set_xlabel('Episode #')
+            axes[i].set_ylabel(name)
+            axes[i].set_xlabel('Episode #')
 
         if file_name is None:
             fig.show()
