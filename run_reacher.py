@@ -80,11 +80,11 @@ if __name__ == '__main__':
     config = {
         'agent_type': 'DDPG',
         'buffer': {'type': 'RB', 'buffer_size': int(1e5)},
-        'batch_size': 64,
+        'batch_size': 128,
         'epsilon': {'eps_start': 1.0, 'eps_end': 0.01, 'eps_decay': 0.995},
         'gamma': 0.99, 'tau': 1e-3,
         'update_every': 4,
-        'actor': {'hidden_layers': [512, 256, 128], 'lr': 0.0001},
-        'critic': {'hidden_layers': [512, 256, 128], 'lr': 0.0001}
+        'actor': {'hidden_layers': [512, 256, 128], 'lr': 0.001, 'batch_norm': True},
+        'critic': {'hidden_layers': [512, 256, 128], 'lr': 0.001, 'batch_norm': True}
     }
     main(agent_config=config, n_episodes=2000)

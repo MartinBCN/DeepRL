@@ -1,5 +1,4 @@
 from typing import List
-
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -8,21 +7,21 @@ torch.manual_seed(42)
 
 
 class Actor(nn.Module):
-    """
-    Actor (Policy) Model.
-
-    Parameters
-    ----------
-    state_size: int
-        Dimension of each state
-    action_size: int
-        Dimension of each action
-    hidden_layers: List[int]
-        Hidden layer sizes
-    batch_norm: bool
-        Use batch normalization or not
-    """
     def __init__(self, state_size: int, action_size: int, hidden_layers: List[int] = None, batch_norm: bool = False):
+        """
+        Actor (Policy) Model.
+
+        Parameters
+        ----------
+        state_size: int
+            Dimension of each state
+        action_size: int
+            Dimension of each action
+        hidden_layers: List[int]
+            Hidden layer sizes
+        batch_norm: bool
+            Use batch normalization or not
+        """
         super(Actor, self).__init__()
 
         if hidden_layers is None:
@@ -33,7 +32,7 @@ class Actor(nn.Module):
 
         self.linear_layers = nn.ModuleList([nn.Linear(h1, h2) for h1, h2 in zip(inputs, outputs)])
         if batch_norm:
-            self.batch_norm = [nn.BatchNorm1d(output) for output in outputs]
+            self.batch_norm = [nn.LayerNorm(output) for output in outputs]
         else:
             self.batch_norm = []
         self.activation_hidden = nn.ReLU()
@@ -57,10 +56,11 @@ class Actor(nn.Module):
         """
 
         x = state
+
         for i, linear in enumerate(self.linear_layers):
             x = linear(x)
             x = self.activation_hidden(x)
-            if self.batch_norm:
+            if self.batch_norm and len(x.shape) > 1:
                 x = self.batch_norm[i](x)
             x = self.dropout(x)
 
@@ -100,7 +100,7 @@ class Critic(nn.Module):
 
         self.linear_layers = nn.ModuleList([nn.Linear(h1, h2) for h1, h2 in zip(inputs, outputs)])
         if batch_norm:
-            self.batch_norm = [nn.BatchNorm1d(output) for output in outputs]
+            self.batch_norm = [nn.LayerNorm(output) for output in outputs]
         else:
             self.batch_norm = []
         self.activation_hidden = nn.ReLU()
@@ -247,19 +247,3 @@ class DuelingDQN(nn.Module):
         action = values + (advantage - advantage.mean())
 
         return action
-
-
-if __name__ == '__main__':
-    hl = [512, 256, 128]
-    critic = Critic(state_size=33, action_size=4, hidden_layers=hl, batch_norm=True)
-    batch_state = torch.rand(64, 33)
-    batch_action = torch.rand(64, 4)
-
-    result = critic(batch_state, batch_action)
-
-    print(result.shape)
-
-    hl = [512, 256, 128]
-    actor = Actor(state_size=33, action_size=4, hidden_layers=hl, batch_norm=True)
-    result = actor(batch_state)
-    print(result.shape)

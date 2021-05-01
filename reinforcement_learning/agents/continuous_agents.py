@@ -39,15 +39,17 @@ class DDPG(BaseContinuous):
 
         # Actor
         hl = agent_config['actor']['hidden_layers']
-        self.actor_local = Actor(state_size, action_size, hidden_layers=hl).to(device)
-        self.actor_target = Actor(state_size, action_size, hidden_layers=hl).to(device)
+        bn = agent_config['actor']['batch_norm']
+        self.actor_local = Actor(state_size, action_size, hidden_layers=hl, batch_norm=bn).to(device)
+        self.actor_target = Actor(state_size, action_size, hidden_layers=hl, batch_norm=bn).to(device)
         lr_actor = agent_config['actor']['lr']
         self.optimizer_actor = Adam(self.actor_local.parameters(), lr=lr_actor)
 
         # Critic
         hl = agent_config['critic']['hidden_layers']
-        self.critic_local = Critic(state_size, action_size, hidden_layers=hl).to(device)
-        self.critic_target = Critic(state_size, action_size, hidden_layers=hl).to(device)
+        bn = agent_config['critic']['batch_norm']
+        self.critic_local = Critic(state_size, action_size, hidden_layers=hl, batch_norm=bn).to(device)
+        self.critic_target = Critic(state_size, action_size, hidden_layers=hl, batch_norm=bn).to(device)
         lr_critic = agent_config['critic']['lr']
         self.optimizer_critic = Adam(self.critic_local.parameters(), lr=lr_critic)
 
@@ -92,7 +94,6 @@ class DDPG(BaseContinuous):
             Loss is returned for book-keeping. To allow for more than one we return a dictionary
         """
         loss = {}
-        actor_loss, critic_loss = None, None
         # Save experience in replay memory
         self.memory.add(state, action, reward, next_state, done)
 
