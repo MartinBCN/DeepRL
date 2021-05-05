@@ -16,6 +16,7 @@ from reinforcement_learning.utils.noise import OUNoise
 
 random.seed(42)
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+device = 'cpu'
 BUFFER = {'RB': ReplayBuffer, "PRB": PrioritizedReplayBuffer}
 
 
@@ -138,8 +139,7 @@ class BaseAgent(ABC):
             Loss is returned for book-keeping
         """
 
-    @staticmethod
-    def soft_update(local_model: nn.Module, target_model: nn.Module, tau: float):
+    def soft_update(self, local_model: nn.Module, target_model: nn.Module):
         """
         Soft update model parameters.
         θ_target = τ*θ_local + (1 - τ)*θ_target
@@ -150,15 +150,13 @@ class BaseAgent(ABC):
             weights will be copied from
         target_model: nn.Module
             weights will be copied to
-        tau: float
-            interpolation parameter
 
         Returns
         -------
 
         """
         for target_param, local_param in zip(target_model.parameters(), local_model.parameters()):
-            target_param.data.copy_(tau * local_param.data + (1.0 - tau) * target_param.data)
+            target_param.data.copy_(self.tau * local_param.data + (1.0 - self.tau) * target_param.data)
 
     @abstractmethod
     def save(self, path_name: Union[str, Path]) -> None:

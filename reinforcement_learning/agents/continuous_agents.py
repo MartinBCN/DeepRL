@@ -9,15 +9,11 @@ from torch.optim import Adam
 
 from reinforcement_learning.agents.base_agent import BaseContinuous
 from reinforcement_learning.model.models import Actor, Critic
-from reinforcement_learning.utils.buffer import ReplayBuffer
 import torch
 import torch.nn.functional as F
-import torch.nn as nn
-
-from reinforcement_learning.utils.noise import OUNoise
-
 random.seed(42)
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+device = 'cpu'
 
 
 class DDPG(BaseContinuous):
@@ -40,16 +36,18 @@ class DDPG(BaseContinuous):
         # Actor
         hl = agent_config['actor']['hidden_layers']
         bn = agent_config['actor']['batch_norm']
-        self.actor_local = Actor(state_size, action_size, hidden_layers=hl, batch_norm=bn).to(device)
-        self.actor_target = Actor(state_size, action_size, hidden_layers=hl, batch_norm=bn).to(device)
+        dropout = agent_config['actor']['dropout']
+        self.actor_local = Actor(state_size, action_size, hidden_layers=hl, batch_norm=bn, dropout=dropout).to(device)
+        self.actor_target = Actor(state_size, action_size, hidden_layers=hl, batch_norm=bn, dropout=dropout).to(device)
         lr_actor = agent_config['actor']['lr']
         self.optimizer_actor = Adam(self.actor_local.parameters(), lr=lr_actor)
 
         # Critic
         hl = agent_config['critic']['hidden_layers']
         bn = agent_config['critic']['batch_norm']
-        self.critic_local = Critic(state_size, action_size, hidden_layers=hl, batch_norm=bn).to(device)
-        self.critic_target = Critic(state_size, action_size, hidden_layers=hl, batch_norm=bn).to(device)
+        dropout = agent_config['critic']['dropout']
+        self.critic_local = Critic(state_size, action_size, hidden_layers=hl, batch_norm=bn, dropout=dropout).to(device)
+        self.critic_target = Critic(state_size, action_size, hidden_layers=hl, batch_norm=bn, dropout=dropout).to(device)
         lr_critic = agent_config['critic']['lr']
         self.optimizer_critic = Adam(self.critic_local.parameters(), lr=lr_critic)
 
@@ -158,6 +156,7 @@ class DDPG(BaseContinuous):
         # Minimize the loss
         self.optimizer_critic.zero_grad()
         critic_loss.backward()
+        # torch.nn.utils.clip_grad_norm_(self.critic_local.parameters(), 1)
         self.optimizer_critic.step()
 
         # ---------------------------- update actor ---------------------------- #
@@ -174,25 +173,6 @@ class DDPG(BaseContinuous):
         self.soft_update(self.actor_local, self.actor_target)
 
         return float(actor_loss.detach().cpu().numpy()), float(critic_loss.detach().cpu().numpy())
-
-    def soft_update(self, local_model: nn.Module, target_model: nn.Module):
-        """
-        Soft update model parameters.
-        θ_target = τ*θ_local + (1 - τ)*θ_target
-
-        Parameters
-        ----------
-        local_model: nn.Module
-            weights will be copied from
-        target_model: nn.Module
-            weights will be copied to
-
-        Returns
-        -------
-
-        """
-        for target_param, local_param in zip(target_model.parameters(), local_model.parameters()):
-            target_param.data.copy_(self.tau * local_param.data + (1.0 - self.tau) * target_param.data)
 
     def save(self, directory: Union[str, Path]) -> None:
         """

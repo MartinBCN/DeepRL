@@ -4,8 +4,6 @@ import os
 from unityagents import UnityEnvironment
 from reinforcement_learning.agents.continuous_agents import DDPG
 from reinforcement_learning.training import Trainer
-from reinforcement_learning.utils.buffer import ReplayBuffer, PrioritizedReplayBuffer
-
 
 AGENTS = {'DDPG': DDPG}
 
@@ -83,8 +81,8 @@ if __name__ == '__main__':
         'batch_size': 128,
         'epsilon': {'eps_start': 1.0, 'eps_end': 0.01, 'eps_decay': 0.995},
         'gamma': 0.99, 'tau': 1e-3,
-        'update_every': 4,
-        'actor': {'hidden_layers': [512, 256, 128], 'lr': 0.001, 'batch_norm': True},
-        'critic': {'hidden_layers': [512, 256, 128], 'lr': 0.001, 'batch_norm': True}
+        'update_every': 6,
+        'actor': {'hidden_layers': [256, 128], 'lr': 0.001, 'batch_norm': True, 'dropout': 0.01},
+        'critic': {'hidden_layers': [256, 128], 'lr': 0.001, 'batch_norm': True, 'dropout': 0.01}
     }
     main(agent_config=config, n_episodes=2000)

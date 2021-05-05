@@ -8,6 +8,7 @@ from torch import Tensor
 from reinforcement_learning.utils.sum_tree import SumTree
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+device = 'cpu'
 random.seed(42)
 
 

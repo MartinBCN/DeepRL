@@ -7,7 +7,8 @@ torch.manual_seed(42)
 
 
 class Actor(nn.Module):
-    def __init__(self, state_size: int, action_size: int, hidden_layers: List[int] = None, batch_norm: bool = False):
+    def __init__(self, state_size: int, action_size: int, hidden_layers: List[int] = None, batch_norm: bool = False,
+                 dropout: float = None):
         """
         Actor (Policy) Model.
 
@@ -39,7 +40,11 @@ class Actor(nn.Module):
 
         self.final_layer = nn.Linear(hidden_layers[-1], action_size)
         self.activation_final = torch.tanh
-        self.dropout = nn.Dropout(p=0.5)
+
+        if dropout is None:
+            self.dropout = None
+        else:
+            self.dropout = nn.Dropout(p=dropout)
 
     def forward(self, state: Tensor) -> Tensor:
         """
@@ -60,9 +65,12 @@ class Actor(nn.Module):
         for i, linear in enumerate(self.linear_layers):
             x = linear(x)
             x = self.activation_hidden(x)
-            if self.batch_norm and len(x.shape) > 1:
+
+            if self.batch_norm:
                 x = self.batch_norm[i](x)
-            x = self.dropout(x)
+
+            if self.dropout is not None:
+                x = self.dropout(x)
 
         x = self.final_layer(x)
         x = self.activation_final(x)
@@ -72,7 +80,7 @@ class Actor(nn.Module):
 class Critic(nn.Module):
 
     def __init__(self, state_size: int, action_size: int, hidden_layers: List[int], action_layer: int = None,
-                 batch_norm: bool = False):
+                 batch_norm: bool = False, dropout: float = None):
         """
         Parameters
         ----------
@@ -106,7 +114,11 @@ class Critic(nn.Module):
         self.activation_hidden = nn.ReLU()
 
         self.final_layer = nn.Linear(hidden_layers[-1], 1)
-        self.dropout = nn.Dropout(p=0.5)
+
+        if dropout is None:
+            self.dropout = None
+        else:
+            self.dropout = nn.Dropout(p=dropout)
 
     def forward(self, state: Tensor, action: Tensor) -> Tensor:
         """
@@ -130,9 +142,12 @@ class Critic(nn.Module):
                 x = torch.cat((x, action), dim=1)
             x = linear(x)
             x = self.activation_hidden(x)
+
             if self.batch_norm:
                 x = self.batch_norm[i](x)
-            x = self.dropout(x)
+
+            if self.dropout is not None:
+                x = self.dropout(x)
 
         return self.final_layer(x)
 

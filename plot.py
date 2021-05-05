@@ -1,9 +1,10 @@
+import streamlit as st
+st.set_page_config(page_title='RL Reacher', page_icon=None, layout='wide')
 import pandas as pd
 import json
 from pathlib import Path
 import numpy as np
-import matplotlib.pyplot as plt
-
+import plotly_express as px
 
 p = Path('runs/reacher')
 
@@ -11,9 +12,6 @@ batch = pd.DataFrame()
 epoch = pd.DataFrame()
 
 configs = pd.DataFrame()
-
-score = pd.DataFrame()
-loss = pd.DataFrame()
 
 for path in p.glob('run*'):
     run = path.name
@@ -39,24 +37,16 @@ for path in p.glob('run*'):
 
         next_epoch['Run'] = run
 
-        score[run] = next_epoch['Mean Score']
-        loss[run] = next_epoch['score'].rolling(100).mean()
-
         batch = pd.concat([batch, next_batch])
         epoch = pd.concat([epoch, next_epoch])
     except:
         pass
 
+col1, col2 = st.beta_columns(2)
 
-print(configs)
+fig = px.line(epoch, x="Epoch", y="Mean Score", color='Run')
+fig.write_html('figures/mean_score.html')
+col1.write(fig)
 
-fig, axes = plt.subplots(2, 1, figsize=(12, 8))
-
-for col in score.columns:
-    axes[0].plot(score[col], label=col)
-    axes[0].legend()
-for col in loss.columns:
-    axes[1].plot(loss[col], label=col)
-    axes[1].legend()
-
-plt.savefig('figures/analysis.png')
+fig = px.line(epoch, x="Epoch", y="score", color='Run')
+col2.write(fig)
