@@ -52,21 +52,17 @@ class FixedQTargetAgent(BaseDiscrete):
         self.optimizer.step()
 
         # ------------------- update target network ------------------- #
-        self.soft_update(self.q_network, self.q_network_target, self.tau)
+        self.soft_update(self.q_network, self.q_network_target)
 
         return float(loss.detach().cpu().numpy())
 
 
 class DoubleQAgent(BaseDiscrete):
-    def __init__(self, state_size: int, action_size: int,
-                 buffer_type: type, buffer_size: int = int(1e5), batch_size: int = 64,
-                 gamma: float = 0.99, tau: float = 1e-3, lr: float = 5e-4, update_every: int = 4,
-                 eps_start: float = 1.0, eps_end: float = 0.01, eps_decay: float = 0.995) -> None:
-        super(DoubleQAgent, self).__init__(state_size, action_size, buffer_type, buffer_size, batch_size,
-                                           gamma, tau, update_every, eps_start, eps_end, eps_decay, lr)
+    def __init__(self, state_size: int, action_size: int, agent_config: dict) -> None:
+        super(DoubleQAgent, self).__init__(state_size, action_size, agent_config=agent_config)
         # Q-Network
         self.q_network_target = DQN(state_size, action_size).to(device)
-        self.optimizer_target = Adam(self.q_network_target.parameters(), lr=lr)
+        self.optimizer_target = Adam(self.q_network_target.parameters(), lr=agent_config['lr'])
 
     def learn(self, experiences: Tuple[Tensor, Tensor, Tensor, Tensor, Tensor]) -> float:
         """

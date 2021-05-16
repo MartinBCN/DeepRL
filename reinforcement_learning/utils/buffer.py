@@ -8,7 +8,7 @@ from torch import Tensor
 from reinforcement_learning.utils.sum_tree import SumTree
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-device = 'cpu'
+device = torch.device("cpu")
 random.seed(42)
 
 
@@ -29,22 +29,25 @@ class ReplayBuffer:
         self.batch_size = batch_size
         self.experience = namedtuple("Experience", field_names=["state", "action", "reward", "next_state", "done"])
 
-    def add(self, state: np.array, action: int, reward: float, next_state: np.array, done: bool) -> None:
+    def add(self, experience: Tuple[np.array, int, float, np.array, bool], loss: float = None) -> None:
         """
         Add a new experience to memory.
 
         Parameters
         ----------
-        state: np.array
-        action: int
-        reward: float
-        next_state: np.array
-        done: bool
+        experience: Tuple[np.array, int, float, np.array, bool]
+            state: np.array
+            action: int
+            reward: float
+            next_state: np.array
+            done: bool
+        loss: float
 
         Returns
         -------
         None
         """
+        state, action, reward, next_state, done = experience
         e = self.experience(state, action, reward, next_state, done)
         self.memory.append(e)
 
@@ -82,6 +85,10 @@ class ReplayBuffer:
         """
         return len(self.memory)
 
+    def ready(self):
+        """Return the current size of internal memory."""
+        return len(self.memory) > self.batch_size
+
 
 class PrioritizedReplayBuffer(ReplayBuffer):
     def __init__(self, action_size: int, buffer_size: int, batch_size: int) -> None:
@@ -106,21 +113,25 @@ class PrioritizedReplayBuffer(ReplayBuffer):
 
         return states, actions, rewards, next_states, dones
 
-    def add(self, state: np.array, action: int, reward: float, next_state: np.array, done: bool) -> None:
+    def add(self, experience: Tuple[np.array, int, float, np.array, bool], loss: float = None) -> None:
         """
         Add a new experience to memory.
 
         Parameters
         ----------
-        state: np.array
-        action: int
-        reward: float
-        next_state: np.array
-        done: bool
+        experience: Tuple[np.array, int, float, np.array, bool]
+            state: np.array
+            action: int
+            reward: float
+            next_state: np.array
+            done: bool
+        loss: float
 
         Returns
         -------
         None
         """
+        state, action, reward, next_state, done = experience
+
         e = self.experience(state, action, reward, next_state, done)
-        self.memory.add(priority=reward + 1e-1, data=e)
+        self.memory.add(priority=loss, data=e)

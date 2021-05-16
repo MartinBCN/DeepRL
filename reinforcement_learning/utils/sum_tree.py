@@ -177,8 +177,8 @@ class SumTree:
 if __name__ == '__main__':
     # Test the sum tree
     tree = SumTree(10)
-    objects = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J']
-    priorities = list(range(1, 11))
+    objects = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K']
+    priorities = list(range(1, 12))
     for o, p in zip(objects, priorities):
         tree.add(priority=p, data=o)
 

@@ -5,7 +5,7 @@ from typing import Tuple, Union, Dict
 import numpy as np
 import random
 
-from torch import Tensor
+from torch import Tensor, optim
 from torch.optim import Adam
 import torch
 import torch.nn as nn
@@ -47,10 +47,9 @@ class BaseAgent(ABC):
         self.tau = agent_config['tau']
 
         # Replay memory
-        self.batch_size = agent_config['batch_size']
+        self.batch_size = agent_config['buffer']['batch_size']
         buffer_size = agent_config['buffer']['buffer_size']
-        buffer = BUFFER[agent_config['buffer']['type']]
-        self.memory = buffer(action_size, buffer_size, self.batch_size)
+        self.memory = agent_config['buffer']['type'](action_size, buffer_size, self.batch_size)
         # Initialize time step (for updating every UPDATE_EVERY steps)
         self.t_step = 0
         self.update_every = agent_config['update_every']
@@ -178,10 +177,21 @@ class BaseContinuous(BaseAgent, ABC):
     def __init__(self, state_size: int, action_size: int, agent_config: dict) -> None:
         super(BaseContinuous, self).__init__(state_size, action_size, agent_config)
 
-        # Actor
-        self.actor_local = Actor(state_size, action_size).to(device)
-        self.actor_target = Actor(state_size, action_size).to(device)
-        self.optimizer_actor = Adam(self.actor_local.parameters(), lr=agent_config['actor']['lr'])
+        lr = agent_config['model_params']['lr']
+
+        # Actor Network (w/ Target Network)
+        hidden_layers = agent_config['model_params']['hidden_layers']
+        dropout = agent_config['model_params']['dropout']
+        norm = agent_config['model_params']['norm']
+        act_fn = agent_config['model_params']['act_fn']
+
+        self.actor_local = Actor(action_size=action_size, state_size=state_size, hidden_layers=hidden_layers,
+                                 dropout=dropout, norm=norm, act_fn=act_fn
+                                 ).to(device)
+        self.actor_target = Actor(action_size=action_size, state_size=state_size, hidden_layers=hidden_layers,
+                                  dropout=dropout, norm=norm, act_fn=act_fn
+                                  ).to(device)
+        self.actor_optimizer = optim.Adam(self.actor_local.parameters(), lr=lr)
 
         # Noise process
         self.use_noise = agent_config.get('use_noise', True)
@@ -236,6 +246,7 @@ class BaseDiscrete(BaseAgent, ABC):
         # Q-Network
         self.q_network = DQN(state_size, action_size).to(device)
         self.optimizer = Adam(self.q_network.parameters(), lr=agent_config['q_network']['lr'])
+        self.tau = agent_config['tau']
 
     def act(self, state: np.array) -> np.array:
         """

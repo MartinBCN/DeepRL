@@ -4,6 +4,9 @@ import os
 from unityagents import UnityEnvironment
 from reinforcement_learning.agents.continuous_agents import DDPG
 from reinforcement_learning.training import Trainer
+import torch.nn.functional as F
+
+from reinforcement_learning.utils.buffer import ReplayBuffer, PrioritizedReplayBuffer
 
 AGENTS = {'DDPG': DDPG}
 
@@ -48,8 +51,8 @@ def main(agent_config: dict, n_episodes: int = 2000, max_t: int = 1000) -> None:
 
     log_file = path / f'logs.json'
     conf_file = path / 'config.json'
-    with open(conf_file, 'w') as file:
-        json.dump(agent_config, file)
+    # with open(conf_file, 'w') as file:
+    #     json.dump(agent_config, file)
 
     trainer = Trainer(env,
                       brain=0,
@@ -60,11 +63,10 @@ def main(agent_config: dict, n_episodes: int = 2000, max_t: int = 1000) -> None:
 
     state_size, action_size = trainer.get_sizes()
 
-    agent = AGENTS[agent_config['agent_type']]
-    agent = agent(state_size=state_size,
-                  action_size=action_size,
-                  agent_config=agent_config
-                  )
+    agent = agent_config['agent_type'](state_size=state_size,
+                                       action_size=action_size,
+                                       agent_config=agent_config
+                                       )
 
     trainer.train(agent, n_episodes=n_episodes)
 
@@ -76,13 +78,27 @@ def main(agent_config: dict, n_episodes: int = 2000, max_t: int = 1000) -> None:
 
 if __name__ == '__main__':
     config = {
-        'agent_type': 'DDPG',
-        'buffer': {'type': 'RB', 'buffer_size': int(1e5)},
-        'batch_size': 128,
+        'agent_type': DDPG,
+        'buffer': {'type': ReplayBuffer, 'buffer_size': int(1e6), 'batch_size': 128},
         'epsilon': {'eps_start': 1.0, 'eps_end': 0.01, 'eps_decay': 0.995},
         'gamma': 0.99, 'tau': 1e-3,
-        'update_every': 6,
-        'actor': {'hidden_layers': [256, 128], 'lr': 0.001, 'batch_norm': True, 'dropout': 0.01},
-        'critic': {'hidden_layers': [256, 128], 'lr': 0.001, 'batch_norm': True, 'dropout': 0.01}
+        'update_every': 5,
+        'num_agents': 1,
+        'add_noise': True,
+        'gradient_clipping': True,
+        'model_params': {
+            'norm': True,
+            'lr': 0.001,
+            'hidden_layers': [512, 256],
+            'dropout': 0.05,
+            'act_fn': F.leaky_relu,
+            'action_layer': 1,
+            'weight_decay': 0.01
+        },
+        'noise_params': {
+            'mu': 0.,
+            'theta': 0.15,
+            'sigma': 0.2,
+        }
     }
     main(agent_config=config, n_episodes=2000)

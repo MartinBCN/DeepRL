@@ -3,12 +3,19 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch import Tensor
+import numpy as np
 torch.manual_seed(42)
 
 
+def hidden_init(layer):
+    fan_in = layer.weight.data.size()[0]
+    lim = 1. / np.sqrt(fan_in)
+    return -lim, lim
+
+
 class Actor(nn.Module):
-    def __init__(self, state_size: int, action_size: int, hidden_layers: List[int] = None, batch_norm: bool = False,
-                 dropout: float = None):
+    def __init__(self, state_size: int, action_size: int, act_fn: callable, norm: List,
+                 hidden_layers: List[int], dropout: float):
         """
         Actor (Policy) Model.
 
@@ -20,31 +27,32 @@ class Actor(nn.Module):
             Dimension of each action
         hidden_layers: List[int]
             Hidden layer sizes
-        batch_norm: bool
-            Use batch normalization or not
+        norm: bool
+            Use layer normalization or not
         """
         super(Actor, self).__init__()
 
-        if hidden_layers is None:
-            hidden_layers = [400, 300]
+        # logger.debug('Parameter: %s', params)
 
+        self.state_size = state_size
+        self.action_size = action_size
+        self.seed = torch.manual_seed(42)
+        self.act_fn = act_fn
+
+        inputs = [state_size] + hidden_layers.copy()[:-1]
         outputs = hidden_layers.copy()
-        inputs = [state_size] + hidden_layers[:-1]
+        self.hidden_layers = nn.ModuleList([nn.Linear(h1, h2) for h1, h2 in zip(inputs, outputs)])
 
-        self.linear_layers = nn.ModuleList([nn.Linear(h1, h2) for h1, h2 in zip(inputs, outputs)])
-        if batch_norm:
-            self.batch_norm = [nn.LayerNorm(output) for output in outputs]
+        # Add a variable number of more hidden layers
+        self.output = nn.Linear(hidden_layers[-1], self.action_size)
+        self.dropout = nn.Dropout(p=dropout)
+
+        if norm:
+            self.norms = [nn.LayerNorm(linear.in_features) for linear in self.hidden_layers]
         else:
-            self.batch_norm = []
-        self.activation_hidden = nn.ReLU()
+            self.norms = []
 
-        self.final_layer = nn.Linear(hidden_layers[-1], action_size)
-        self.activation_final = torch.tanh
-
-        if dropout is None:
-            self.dropout = None
-        else:
-            self.dropout = nn.Dropout(p=dropout)
+        self.reset_parameters()
 
     def forward(self, state: Tensor) -> Tensor:
         """
@@ -59,28 +67,28 @@ class Actor(nn.Module):
         action: Tensor
             State tensor, shape [batch_size, action_size]
         """
-
         x = state
-
-        for i, linear in enumerate(self.linear_layers):
+        for i, linear in enumerate(self.hidden_layers):
+            if self.norms:
+                x = self.norms[i](x)
             x = linear(x)
-            x = self.activation_hidden(x)
+            x = self.act_fn(x)
+            x = self.dropout(x)
 
-            if self.batch_norm:
-                x = self.batch_norm[i](x)
+        x = self.output(x)
+        return torch.tanh(x)
 
-            if self.dropout is not None:
-                x = self.dropout(x)
-
-        x = self.final_layer(x)
-        x = self.activation_final(x)
-        return x
+    def reset_parameters(self):
+        for linear in self.hidden_layers:
+            linear.weight.data.uniform_(*hidden_init(linear))
+        self.output.weight.data.uniform_(-3e-3, 3e-3)
 
 
 class Critic(nn.Module):
 
-    def __init__(self, state_size: int, action_size: int, hidden_layers: List[int], action_layer: int = None,
-                 batch_norm: bool = False, dropout: float = None):
+    def __init__(self, state_size: int, action_size: int, hidden_layers: List[int], act_fn: callable,
+                 action_layer: int = None,
+                 norm: bool = False, dropout: float = None):
         """
         Parameters
         ----------
@@ -92,33 +100,35 @@ class Critic(nn.Module):
             Hidden layer sizes
         action_layer: int
             Layer at which action is concatenated
-        batch_norm: bool
-            Use batch normalization or not
+        norm: bool
+            Use layer normalization or not
         """
         super(Critic, self).__init__()
 
-        if action_layer is None:
-            self.action_layer = len(hidden_layers) - 1
-        else:
-            self.action_layer = action_layer
+        self.state_size = state_size
+        self.action_size = action_size
+        self.seed = torch.manual_seed(42)
+        self.act_fn = act_fn
+        self.action_layer = action_layer
 
-        outputs = hidden_layers.copy()
-        inputs = [state_size] + hidden_layers[:-1].copy()
-        inputs[self.action_layer] += action_size
+        hidden_layers = hidden_layers.copy()
 
-        self.linear_layers = nn.ModuleList([nn.Linear(h1, h2) for h1, h2 in zip(inputs, outputs)])
-        if batch_norm:
-            self.batch_norm = [nn.LayerNorm(output) for output in outputs]
-        else:
-            self.batch_norm = []
-        self.activation_hidden = nn.ReLU()
+        self.norms = []
+        if norm:
+            self.norms.append(nn.LayerNorm(self.state_size))
+            for hidden_neurons in hidden_layers:
+                self.norms.append(nn.LayerNorm(hidden_neurons))
 
-        self.final_layer = nn.Linear(hidden_layers[-1], 1)
+        self.hidden_layers = nn.ModuleList([nn.Linear(self.state_size, hidden_layers[0])])
 
-        if dropout is None:
-            self.dropout = None
-        else:
-            self.dropout = nn.Dropout(p=dropout)
+        # Add a variable number of more hidden layers
+        hidden_layers[self.action_layer - 1] += self.action_size
+        layer_sizes = zip(hidden_layers[:-1], hidden_layers[1:])
+        self.hidden_layers.extend([nn.Linear(h1, h2) for h1, h2 in layer_sizes])
+        self.output = nn.Linear(hidden_layers[-1], 1)
+        self.dropout = nn.Dropout(p=dropout)
+
+        self.reset_parameters()
 
     def forward(self, state: Tensor, action: Tensor) -> Tensor:
         """
@@ -135,21 +145,25 @@ class Critic(nn.Module):
         q: Tensor
             Q-Value for state-action pair
         """
-
         x = state
-        for i, linear in enumerate(self.linear_layers):
+        for i, linear in enumerate(self.hidden_layers):
+            if self.norms:
+                x = self.norms[i](x)
             if i == self.action_layer:
                 x = torch.cat((x, action), dim=1)
             x = linear(x)
-            x = self.activation_hidden(x)
+            x = self.act_fn(x)
+            x = self.dropout(x)
 
-            if self.batch_norm:
-                x = self.batch_norm[i](x)
+        if self.norms:
+            x = self.norms[i + 1](x)
+        x = self.output(x)
+        return x
 
-            if self.dropout is not None:
-                x = self.dropout(x)
-
-        return self.final_layer(x)
+    def reset_parameters(self):
+        for linear in self.hidden_layers:
+            linear.weight.data.uniform_(*hidden_init(linear))
+        self.output.weight.data.uniform_(-3e-3, 3e-3)
 
 
 class DQN(nn.Module):
@@ -180,6 +194,11 @@ class DQN(nn.Module):
             nn.ReLU(),
             self.fc3
         )
+
+    def reset_parameters(self):
+        for linear in self.hidden_layers:
+            linear.weight.data.uniform_(*hidden_init(linear))
+        self.output.weight.data.uniform_(-3e-3, 3e-3)
 
     def forward(self, state: Tensor) -> Tensor:
         """

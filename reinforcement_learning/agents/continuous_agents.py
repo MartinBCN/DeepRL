@@ -4,7 +4,7 @@ from typing import Tuple, Union, Dict
 import numpy as np
 import random
 
-from torch import Tensor
+from torch import Tensor, optim
 from torch.optim import Adam
 
 from reinforcement_learning.agents.base_agent import BaseContinuous
@@ -33,23 +33,26 @@ class DDPG(BaseContinuous):
         self.state_size = state_size
         self.action_size = action_size
 
-        # Actor
-        hl = agent_config['actor']['hidden_layers']
-        bn = agent_config['actor']['batch_norm']
-        dropout = agent_config['actor']['dropout']
-        self.actor_local = Actor(state_size, action_size, hidden_layers=hl, batch_norm=bn, dropout=dropout).to(device)
-        self.actor_target = Actor(state_size, action_size, hidden_layers=hl, batch_norm=bn, dropout=dropout).to(device)
-        lr_actor = agent_config['actor']['lr']
-        self.optimizer_actor = Adam(self.actor_local.parameters(), lr=lr_actor)
+        lr = agent_config['model_params']['lr']
+        hidden_layers = agent_config['model_params']['hidden_layers']
+        dropout = agent_config['model_params']['dropout']
+        norm = agent_config['model_params']['norm']
+        act_fn = agent_config['model_params']['act_fn']
 
-        # Critic
-        hl = agent_config['critic']['hidden_layers']
-        bn = agent_config['critic']['batch_norm']
-        dropout = agent_config['critic']['dropout']
-        self.critic_local = Critic(state_size, action_size, hidden_layers=hl, batch_norm=bn, dropout=dropout).to(device)
-        self.critic_target = Critic(state_size, action_size, hidden_layers=hl, batch_norm=bn, dropout=dropout).to(device)
-        lr_critic = agent_config['critic']['lr']
-        self.optimizer_critic = Adam(self.critic_local.parameters(), lr=lr_critic)
+        # Critic Network (w/ Target Network)
+        action_layer = agent_config['model_params']['action_layer']
+        weight_decay = agent_config['model_params']['weight_decay']
+        self.critic_local = Critic(action_size=action_size, state_size=state_size,
+                                   hidden_layers=hidden_layers, action_layer=action_layer,
+                                   dropout=dropout, norm=norm, act_fn=act_fn
+                                   ).to(device)
+        self.critic_target = Critic(action_size=action_size, state_size=state_size,
+                                    hidden_layers=hidden_layers, action_layer=action_layer,
+                                    dropout=dropout, norm=norm, act_fn=act_fn
+                                    ).to(device)
+
+        self.critic_optimizer = optim.Adam(self.critic_local.parameters(), lr=lr,
+                                           weight_decay=weight_decay)
 
     def step_epsilon(self):
         """
@@ -93,7 +96,9 @@ class DDPG(BaseContinuous):
         """
         loss = {}
         # Save experience in replay memory
-        self.memory.add(state, action, reward, next_state, done)
+        experience = state, action, reward, next_state, done
+
+        self.memory.add(experience, 1.)
 
         # Learn every UPDATE_EVERY time steps.
         self.t_step = (self.t_step + 1) % self.update_every
@@ -154,19 +159,19 @@ class DDPG(BaseContinuous):
         q_expected = self.critic_local(states, actions)
         critic_loss = F.mse_loss(q_expected, q_targets)
         # Minimize the loss
-        self.optimizer_critic.zero_grad()
+        self.critic_optimizer.zero_grad()
         critic_loss.backward()
-        # torch.nn.utils.clip_grad_norm_(self.critic_local.parameters(), 1)
-        self.optimizer_critic.step()
+        torch.nn.utils.clip_grad_norm_(self.critic_local.parameters(), 1)
+        self.critic_optimizer.step()
 
         # ---------------------------- update actor ---------------------------- #
         # Compute actor loss
         actions_pred = self.actor_local(states)
         actor_loss = -self.critic_local(states, actions_pred).mean()
         # Minimize the loss
-        self.optimizer_actor.zero_grad()
+        self.actor_optimizer.zero_grad()
         actor_loss.backward()
-        self.optimizer_actor.step()
+        self.actor_optimizer.step()
 
         # ----------------------- update target networks ----------------------- #
         self.soft_update(self.critic_local, self.critic_target)
